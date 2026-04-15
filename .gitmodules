@@ -1,0 +1,3 @@
+[submodule "data/GAIC-2026"]
+	path = data/GAIC-2026
+	url = https://github.com/TomatenMarc/GAIC-2026.git
