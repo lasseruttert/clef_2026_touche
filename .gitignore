@@ -1,7 +1,7 @@
-*/*/*/runs
-*/*/*.log
-*/*/*/__pycache__
+**/runs
+**/*.log
+**/__pycache__
 __pycache__/
 .md
 
-.log
+**/runs
