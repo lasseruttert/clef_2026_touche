@@ -10,6 +10,7 @@ WARMUP_RATIO = 0.1
 SEED = 42
 OUTPUT_DIR = Path(__file__).parent / "runs"
 TAG = "roberta-bio-baseline"
+RESULTS_LOG = Path(__file__).parents[1] / "results.log"
 
 LABELS = ["O", "B-ENT", "I-ENT"]
 LABEL2ID = {l: i for i, l in enumerate(LABELS)}

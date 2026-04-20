@@ -15,7 +15,7 @@ from transformers import (
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from task2_causality_detection.common.data_paths import FILES
-from task2_causality_detection.common.pretty import attach, quiet_transformers
+from task2_causality_detection.common.pretty import attach, log_best_result, quiet_transformers, setup_logging
 from task2_causality_detection.subtask2_extraction.roberta_bio_baseline import config as C
 from task2_causality_detection.subtask2_extraction.roberta_bio_baseline.bio import (
     spans_to_bio,
@@ -68,6 +68,7 @@ def span_f1(pred_spans, gold_spans):
 
 def main():
     quiet_transformers()
+    setup_logging(C.OUTPUT_DIR, C.TAG)
     set_seed(C.SEED)
     tokenizer = AutoTokenizer.from_pretrained(C.MODEL_NAME, add_prefix_space=True)
     model = AutoModelForTokenClassification.from_pretrained(
@@ -112,7 +113,7 @@ def main():
         greater_is_better=True,
         save_total_limit=1,
         seed=C.SEED,
-        report_to="none",
+        report_to="tensorboard",
         logging_strategy="epoch",
         disable_tqdm=True,
     )
@@ -129,6 +130,10 @@ def main():
     attach(trainer)
     trainer.train()
     trainer.save_model(str(C.OUTPUT_DIR / "best"))
+    best = {k.replace("eval_", ""): v for k, v in trainer.evaluate().items()
+            if k.startswith("eval_") and isinstance(v, float)
+            and "runtime" not in k and "per_second" not in k}
+    log_best_result(C.RESULTS_LOG, C.TAG, best)
 
 
 if __name__ == "__main__":

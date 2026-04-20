@@ -10,3 +10,4 @@ WARMUP_RATIO = 0.1
 SEED = 42
 OUTPUT_DIR = Path(__file__).parent / "runs"
 TAG = "roberta-baseline"
+RESULTS_LOG = Path(__file__).parents[1] / "results.log"

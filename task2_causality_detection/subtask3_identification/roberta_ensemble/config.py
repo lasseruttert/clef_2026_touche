@@ -7,10 +7,10 @@ EPOCHS = 5
 LR = 2e-5
 WEIGHT_DECAY = 0.01
 WARMUP_RATIO = 0.1
-SEED = 42
+SEEDS = [42, 43, 44]
 OUTPUT_DIR = Path(__file__).parent / "runs"
-TAG = "roberta-baseline"
+TAG = "roberta-ensemble"
 RESULTS_LOG = Path(__file__).parents[1] / "results.log"
 
 SPECIAL_TOKENS = ["<e0>", "</e0>", "<e1>", "</e1>"]
-NUM_LABELS = 3  # 0 uncausal, 1 causal, 2 countercausal
+NUM_LABELS = 3
