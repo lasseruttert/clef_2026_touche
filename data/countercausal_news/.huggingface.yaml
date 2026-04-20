@@ -1,0 +1,93 @@
+configs:
+- config_name: causality detection
+  data_files:
+  - split: train
+    path: causality-detection-train.jsonl
+  - split: dev
+    path: causality-detection-dev.jsonl
+  features:
+  - name: index
+    dtype: string
+  - name: text
+    dtype: string
+  - name: label
+    dtype:
+      class_label:
+        names:
+          '0': uncausal
+          '1': causal
+- config_name: causal candidate extraction
+  data_files:
+  - split: train
+    path: causal-candidate-extraction-train.jsonl
+  - split: dev
+    path: causal-candidate-extraction-dev.jsonl
+  features:
+    - name: index
+      dtype: string
+    - name: text
+      dtype: string
+    - name: entity
+      sequence:
+        sequence: int32
+- config_name: causality identification
+  data_files:
+  - split: train
+    path: causality-identification-train.jsonl
+  - split: dev
+    path: causality-identification-dev.jsonl
+  features:
+  - name: index
+    dtype: string
+  - name: text
+    dtype: string
+  - name: relations
+    list:
+    - name: relationship
+      dtype:
+        class_label:
+          names:
+            '0': no-rel  # Does not really make sense but exists to have the same labels as the classification task
+            '1': causal
+            '2': countercausal
+    - name: first
+      dtype: string
+    - name: second
+      dtype: string
+train-eval-index:
+- config: causality detection
+  task: text-classification
+  task_id: text_classification
+  splits:
+    train_split: train
+    eval_split: test
+  col_mapping:
+    text: text
+    label: label
+  metrics:
+  - type: accuracy
+  - type: precision
+  - type: recall
+  - type: f1
+- config: causal candidate extraction
+  task: token-classification
+  task_id: token_classification
+  splits:
+    train_split: train
+    eval_split: test
+  metrics:
+  - type: accuracy
+  - type: precision
+  - type: recall
+  - type: f1
+- config: causality identification
+  task: text-classification
+  task_id: text_classification
+  splits:
+    train_split: train
+    eval_split: test
+  metrics:
+  - type: accuracy
+  - type: precision
+  - type: recall
+  - type: f1
