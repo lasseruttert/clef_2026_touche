@@ -56,6 +56,22 @@ def _write_jsonl(path: Path, rows: Iterable[dict]):
             f.write(json.dumps(row) + "\n")
 
 
+def _log(message: str):
+    print(f"[tira-run] {message}", flush=True)
+
+
+def _fallback_rows(input_file: Path, subtask: str) -> list[dict]:
+    df = pd.read_json(input_file, lines=True)
+    rows = []
+    for _, row in df.iterrows():
+        sample_id = _output_id(row)
+        if subtask == "st2":
+            rows.append({"index": sample_id, "entity": [], "tag": f"{C.TAG}-fallback"})
+        else:
+            rows.append({"index": sample_id, "label": 0, "tag": f"{C.TAG}-fallback"})
+    return rows
+
+
 def _deberta_config(vocab_size: int) -> DebertaV2Config:
     return DebertaV2Config(
         vocab_size=vocab_size,
@@ -75,6 +91,7 @@ def _deberta_config(vocab_size: int) -> DebertaV2Config:
 
 def _load_model(device: torch.device, model_dir: Path | None):
     best_dir = model_dir or C.OUTPUT_DIR / "best"
+    _log(f"loading model from {best_dir}")
     if not (best_dir / "model.pt").exists():
         raise FileNotFoundError(
             f"Missing checkpoint at {best_dir / 'model.pt'}. "
@@ -89,6 +106,7 @@ def _load_model(device: torch.device, model_dir: Path | None):
     model.load_state_dict(checkpoint["model_state"])
     model.to(device)
     model.eval()
+    _log("model loaded")
     return model, tokenizer
 
 
@@ -193,6 +211,14 @@ def _generic_input(input_dir: Path) -> Path | None:
 
 
 def _infer_generic_subtask(input_file: Path) -> str:
+    lower_path = str(input_file).lower()
+    if "task1" in lower_path:
+        return "st1"
+    if "task2" in lower_path:
+        return "st2"
+    if "task3" in lower_path:
+        return "st3"
+
     df = pd.read_json(input_file, lines=True)
     if "text" not in df.columns:
         raise ValueError(f"Cannot infer subtask from {input_file}: no text column.")
@@ -232,13 +258,19 @@ def main():
         raise SystemExit("Provide --input-directory/--output-directory or set inputDataset/outputDir.")
 
     quiet_transformers()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model, tokenizer = _load_model(device, args.model_directory)
-
+    _log(f"input directory: {args.input_directory}")
+    _log(f"output directory: {args.output_directory}")
     generic_input = _generic_input(args.input_directory)
     selected = TASKS.keys() if args.subtask == "all" else [args.subtask]
     if generic_input is not None:
         selected = [_infer_generic_subtask(generic_input)] if args.subtask == "all" else [args.subtask]
+        _log(f"generic input: {generic_input}; inferred subtask: {selected[0]}")
+        _write_jsonl(args.output_directory / "predictions.jsonl", _fallback_rows(generic_input, selected[0]))
+        _log("wrote fallback predictions")
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    _log(f"device: {device}")
+    model, tokenizer = _load_model(device, args.model_directory)
 
     written_outputs = []
     for name in selected:
