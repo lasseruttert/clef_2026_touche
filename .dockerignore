@@ -1,0 +1,10 @@
+.git
+data/
+**/__pycache__/
+**/*.log
+task2_causality_detection/tira_test_output/
+
+**/runs/
+!task2_causality_detection/deberta_joint/runs/
+!task2_causality_detection/deberta_joint/runs/best/
+!task2_causality_detection/deberta_joint/runs/best/**
