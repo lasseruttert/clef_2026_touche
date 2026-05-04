@@ -45,6 +45,10 @@ def _record_id(row: pd.Series):
     return row["index"] if "index" in row else row["id"]
 
 
+def _output_id(row: pd.Series):
+    return _record_id(row)
+
+
 def _write_jsonl(path: Path, rows: Iterable[dict]):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
@@ -91,7 +95,7 @@ def _load_model(device: torch.device, model_dir: Path | None):
 def _predict_cls(model, tokenizer, device: torch.device, input_file: Path, task_id: int):
     df = pd.read_json(input_file, lines=True)
     texts = df["text"].map(clean_loose).tolist() if task_id == 0 else df["text"].tolist()
-    ids = [_record_id(row) for _, row in df.iterrows()]
+    ids = [_output_id(row) for _, row in df.iterrows()]
 
     rows = []
     with torch.no_grad():
@@ -111,7 +115,7 @@ def _predict_cls(model, tokenizer, device: torch.device, input_file: Path, task_
             logits = model(task_id=task_id, **encoded).logits
             preds = logits.argmax(-1).cpu().tolist()
             rows.extend(
-                {"id": sample_id, "label": int(label), "tag": C.TAG}
+                {"index": sample_id, "label": int(label), "tag": C.TAG}
                 for sample_id, label in zip(ids[start:start + 32], preds)
             )
     return rows
@@ -129,7 +133,7 @@ def _predict_extraction(model, tokenizer, device: torch.device, input_file: Path
     records = []
     for i, row in df.iterrows():
         records.append({
-            "id": _record_id(row),
+            "index": _output_id(row),
             "input_ids": encoded["input_ids"][i],
             "attention_mask": encoded["attention_mask"][i],
             "offset_mapping": _spm_offsets(tokenizer, row["text"], encoded["input_ids"][i]),
@@ -164,7 +168,7 @@ def _predict_extraction(model, tokenizer, device: torch.device, input_file: Path
                     for k in range(length)
                 ]
                 spans = [[s, e] for s, e in bio_to_spans(rec["offset_mapping"], pred_ids)]
-                rows.append({"id": rec["id"], "entity": spans, "tag": C.TAG})
+                rows.append({"index": rec["index"], "entity": spans, "tag": C.TAG})
     return rows
 
 
@@ -174,6 +178,30 @@ def _select_input(input_dir: Path, stem: str) -> Path | None:
         return None
     non_train = [p for p in files if "-train" not in p.name]
     return non_train[0] if non_train else files[0]
+
+
+def _generic_input(input_dir: Path) -> Path | None:
+    candidates = sorted(input_dir.rglob("*.jsonl"))
+    candidates = [p for p in candidates if not p.name.startswith(".")]
+    if len(candidates) == 1:
+        return candidates[0]
+    for name in ("inputs.jsonl", "input.jsonl"):
+        matches = [p for p in candidates if p.name == name]
+        if matches:
+            return matches[0]
+    return None
+
+
+def _infer_generic_subtask(input_file: Path) -> str:
+    df = pd.read_json(input_file, lines=True)
+    if "text" not in df.columns:
+        raise ValueError(f"Cannot infer subtask from {input_file}: no text column.")
+    sample = "\n".join(df["text"].astype(str).head(20).tolist())
+    if "<e0>" in sample and "<e1>" in sample:
+        return "st3"
+    if "entity" in df.columns:
+        return "st2"
+    return "st1"
 
 
 def main():
@@ -207,11 +235,15 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model, tokenizer = _load_model(device, args.model_directory)
 
+    generic_input = _generic_input(args.input_directory)
     selected = TASKS.keys() if args.subtask == "all" else [args.subtask]
+    if generic_input is not None:
+        selected = [_infer_generic_subtask(generic_input)] if args.subtask == "all" else [args.subtask]
+
     written_outputs = []
     for name in selected:
         task = TASKS[name]
-        input_file = _select_input(args.input_directory, task["input_stem"])
+        input_file = generic_input or _select_input(args.input_directory, task["input_stem"])
         if input_file is None:
             continue
 

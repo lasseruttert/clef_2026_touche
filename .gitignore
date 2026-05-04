@@ -6,3 +6,4 @@ __pycache__/
 
 **/runs
 task2_causality_detection/tira_test_output/
+task2_causality_detection/tira_spotcheck_output/
