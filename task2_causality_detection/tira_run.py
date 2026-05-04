@@ -252,7 +252,8 @@ def main():
         else:
             rows = _predict_cls(model, tokenizer, device, input_file, task["task_id"])
 
-        _write_jsonl(args.output_directory / task["output_name"], rows)
+        if generic_input is None:
+            _write_jsonl(args.output_directory / task["output_name"], rows)
         written_outputs.append(rows)
 
     if not written_outputs:
