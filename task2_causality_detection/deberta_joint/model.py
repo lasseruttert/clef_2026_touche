@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from dataclasses import dataclass
 from typing import Optional
-from transformers import DebertaV2Model
+from transformers import DebertaV2Config, DebertaV2Model
 
 
 @dataclass
@@ -12,9 +12,12 @@ class JointOutput:
 
 
 class JointDeBERTa(nn.Module):
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str | DebertaV2Config):
         super().__init__()
-        self.deberta = DebertaV2Model.from_pretrained(model_name)
+        if isinstance(model_name, DebertaV2Config):
+            self.deberta = DebertaV2Model(model_name)
+        else:
+            self.deberta = DebertaV2Model.from_pretrained(model_name)
         hidden = self.deberta.config.hidden_size
         self.dropout = nn.Dropout(0.1)
         self.head_detect = nn.Linear(hidden, 2)
