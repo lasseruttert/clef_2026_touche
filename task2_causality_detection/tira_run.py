@@ -8,7 +8,7 @@ from typing import Iterable
 import pandas as pd
 import torch
 from torch.nn.utils.rnn import pad_sequence
-from transformers import AutoTokenizer, DebertaV2Config
+from transformers import DebertaV2Config, DebertaV2Tokenizer
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from task2_causality_detection.common.preprocessing import clean_loose
@@ -60,18 +60,6 @@ def _log(message: str):
     print(f"[tira-run] {message}", flush=True)
 
 
-def _fallback_rows(input_file: Path, subtask: str) -> list[dict]:
-    df = pd.read_json(input_file, lines=True)
-    rows = []
-    for _, row in df.iterrows():
-        sample_id = _output_id(row)
-        if subtask == "st2":
-            rows.append({"index": sample_id, "entity": [], "tag": f"{C.TAG}-fallback"})
-        else:
-            rows.append({"index": sample_id, "label": 0, "tag": f"{C.TAG}-fallback"})
-    return rows
-
-
 def _deberta_config(vocab_size: int) -> DebertaV2Config:
     return DebertaV2Config(
         vocab_size=vocab_size,
@@ -92,15 +80,22 @@ def _deberta_config(vocab_size: int) -> DebertaV2Config:
 def _load_model(device: torch.device, model_dir: Path | None):
     best_dir = model_dir or C.OUTPUT_DIR / "best"
     _log(f"loading model from {best_dir}")
-    if not (best_dir / "model.pt").exists():
+    required_files = [
+        "model.pt",
+        "spm.model",
+        "tokenizer_config.json",
+        "special_tokens_map.json",
+    ]
+    missing = [name for name in required_files if not (best_dir / name).exists()]
+    if missing:
         raise FileNotFoundError(
-            f"Missing checkpoint at {best_dir / 'model.pt'}. "
-            "For a TIRA code submission, include this checkpoint in the repository "
-            "or make it available as a TIRA artifact before uploading."
+            f"Missing DeBERTa joint artifact(s) in {best_dir}: {', '.join(missing)}. "
+            "The TIRA submission must include task2_causality_detection/deberta_joint/runs/best "
+            "or provide it via modelDir/MODEL_DIR."
         )
 
     checkpoint = torch.load(best_dir / "model.pt", map_location="cpu")
-    tokenizer = AutoTokenizer.from_pretrained(str(best_dir))
+    tokenizer = DebertaV2Tokenizer.from_pretrained(str(best_dir))
 
     model = JointDeBERTa(_deberta_config(checkpoint["vocab_size"]))
     model.load_state_dict(checkpoint["model_state"])
@@ -133,7 +128,7 @@ def _predict_cls(model, tokenizer, device: torch.device, input_file: Path, task_
             logits = model(task_id=task_id, **encoded).logits
             preds = logits.argmax(-1).cpu().tolist()
             rows.extend(
-                {"index": sample_id, "label": int(label), "tag": C.TAG}
+                {"id": sample_id, "label": int(label), "tag": C.TAG}
                 for sample_id, label in zip(ids[start:start + 32], preds)
             )
     return rows
@@ -186,7 +181,7 @@ def _predict_extraction(model, tokenizer, device: torch.device, input_file: Path
                     for k in range(length)
                 ]
                 spans = [[s, e] for s, e in bio_to_spans(rec["offset_mapping"], pred_ids)]
-                rows.append({"index": rec["index"], "entity": spans, "tag": C.TAG})
+                rows.append({"id": rec["index"], "entity": spans, "tag": C.TAG})
     return rows
 
 
@@ -265,8 +260,6 @@ def main():
     if generic_input is not None:
         selected = [_infer_generic_subtask(generic_input)] if args.subtask == "all" else [args.subtask]
         _log(f"generic input: {generic_input}; inferred subtask: {selected[0]}")
-        _write_jsonl(args.output_directory / "predictions.jsonl", _fallback_rows(generic_input, selected[0]))
-        _log("wrote fallback predictions")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     _log(f"device: {device}")

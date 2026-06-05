@@ -6,7 +6,7 @@ tira_test_output/
 tira_spotcheck_output/
 tira_spotcheck_output_fresh/
 
-**/runs
-!deberta_joint/runs
-!deberta_joint/runs/best
+**/runs/**
+!deberta_joint/runs/
+!deberta_joint/runs/best/
 !deberta_joint/runs/best/**
