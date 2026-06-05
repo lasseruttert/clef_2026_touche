@@ -128,7 +128,7 @@ def _predict_cls(model, tokenizer, device: torch.device, input_file: Path, task_
             logits = model(task_id=task_id, **encoded).logits
             preds = logits.argmax(-1).cpu().tolist()
             rows.extend(
-                {"id": sample_id, "label": int(label), "tag": C.TAG}
+                {"index": sample_id, "label": int(label), "tag": C.TAG}
                 for sample_id, label in zip(ids[start:start + 32], preds)
             )
     return rows
@@ -181,7 +181,7 @@ def _predict_extraction(model, tokenizer, device: torch.device, input_file: Path
                     for k in range(length)
                 ]
                 spans = [[s, e] for s, e in bio_to_spans(rec["offset_mapping"], pred_ids)]
-                rows.append({"id": rec["index"], "entity": spans, "tag": C.TAG})
+                rows.append({"index": rec["index"], "entity": spans, "tag": C.TAG})
     return rows
 
 
